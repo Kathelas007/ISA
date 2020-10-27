@@ -36,7 +36,23 @@ public:
 class ServerErr_E : public DNSException {
 public:
     explicit ServerErr_E(std::string msg) {
-        this->code = 1;
+        this->code = 2;
+        this->msg = msg;
+    }
+};
+
+class DeviceErr_E: public DNSException {
+public:
+    explicit DeviceErr_E(std::string msg) {
+        this->code = 3;
+        this->msg = msg;
+    }
+};
+
+class PcapErr_E: public DNSException {
+public:
+    explicit PcapErr_E(std::string msg) {
+        this->code = 4;
         this->msg = msg;
     }
 };

@@ -2,17 +2,20 @@
 #include <cstdlib>
 #include <unistd.h>
 #include <string>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netdb.h>
 #include <cstring>
 
 #include "ErrorExceptions.h"
-#include "main.h"
+#include "DNS_Filter.h"
+//#include "common.h"
 
 using namespace std;
+
+typedef struct {
+    std::string server;
+    int port = 53;
+    std::string filter_file_name;
+    bool verbose = false;
+} dns_args_struct;
 
 void print_help() {
     cout << "help" << endl;
@@ -65,40 +68,34 @@ void parse_args(int argc, char **argv, dns_args_struct *args) {
     //check proper port format
     if (idx_stoi != port_str.length())
         throw BadArgs_E("Port must be a number.");
-    if(args->port< 0 || args->port > 65535)
+    if (args->port < 0 || args->port > 65535)
         throw BadArgs_E("Port must be a number in range <0, 65535>");
-
-}
-
-void set_addr_info(string &server, struct addrinfo *result_addr) {
-    //http://man7.org/linux/man-pages/man3/getaddrinfo.3.html, first example
-    struct addrinfo hints_addr{};
-    memset(&hints_addr, 0, sizeof(hints_addr));
-
-    hints_addr.ai_family = AF_UNSPEC;
-    hints_addr.ai_socktype = SOCK_DGRAM;
-
-    int result = getaddrinfo(server.c_str(), "domain", &hints_addr, &result_addr);
-
-    if (result != 0) {
-        throw ServerErr_E("Server error. Maybe bad server argument?");
-    }
 
 }
 
 int main(int argc, char **argv) {
     dns_args_struct args;
-    addrinfo serverinfo{};
 
+    // parse args
     try {
         parse_args(argc, argv, &args);
-        set_addr_info(args.server, &serverinfo);
     }
     catch (DNSException &e) {
         e.exit_with_msg();
     }
 
-    //start capturing
+    //start filter
+//    log(LOG_VERB) << "Starting filter ..." << endl;
+    DNS_Filter *dns_filter;
+    try {
+        dns_filter = new DNS_Filter(args.server, args.port, args.filter_file_name);
+        dns_filter->start();
+    }
+    catch (DNSException &e) {
+        delete dns_filter;
+    }
 
+    // clean up
+    delete dns_filter;
     return 0;
 }
