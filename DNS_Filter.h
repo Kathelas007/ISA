@@ -56,6 +56,11 @@ protected:
     static void request_callback(u_char *args, const struct pcap_pkthdr *header, const u_char *packet);
 
     static void sigkill_handler(int signum);
+
+    bool process_ip(u_char *ip_start, int &length);
+    bool process_udp(u_char *udp_start, int &dst_port);
+    bool process_dns_header(u_char *dns_start, bool &response);
+    bool process_dns_body(u_char *dns_body, std::string &domain, int &type, int &class_t);
 };
 
 

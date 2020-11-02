@@ -65,91 +65,148 @@ void DNS_Filter::start() {
     pcap_close(handler_pcap);
 }
 
+bool DNS_Filter::process_ip(u_char *ip_start, int &length) {
+    char ip_header_version = ((*ip_start) & 0xF0) >> 4;
+
+    //todo musi souhlasit verze ip
+    if (ip_header_version == 4) {
+        struct iphdr *ip4_header;
+        ip4_header = (struct iphdr *) ip_start;
+        length = ip4_header->ihl * 4;
+        in_addr buf{.s_addr =  ip4_header->saddr};
+        logg(LOG_DEB) << "src IP: " << inet_ntoa(buf) << endl;
+        buf.s_addr = ip4_header->daddr;
+        logg(LOG_DEB) << "dst IP: " << inet_ntoa(buf) << endl;
+        return true;
+
+    } else if (ip_header_version == 6) {
+        struct ip6_hdr *ip6_header;
+        ip6_header = (struct ip6_hdr *) ip_start;
+        length = 40;
+        char buff[320];
+        inet_ntop(AF_INET6, &(ip6_header->ip6_src), buff, sizeof(ip6_header->ip6_src));
+        logg(LOG_DEB) << "src IP: " << buff << endl;
+        inet_ntop(AF_INET6, &(ip6_header->ip6_dst), buff, sizeof(ip6_header->ip6_dst));
+        logg(LOG_DEB) << "buff IP: " << buff << endl;
+        return true;
+    } else {
+        // todo error
+        logg(LOG_DEB) << "error, wrong ip version: " << ip_header_version << endl;
+        return false;
+    }
+}
+
+bool DNS_Filter::process_udp(u_char *udp_start, int &dst_port) {
+    udp_header_struct *udp_header;
+
+    udp_header = (udp_header_struct *) (udp_start);
+    udp_header->dst_port = htons(udp_header->dst_port);
+    udp_header->src_port = htons(udp_header->src_port);
+//    udp_header->len = htons(udp_header->len);
+//    udp_header->checksum = htons(udp_header->checksum);
+
+    logg(LOG_DEB) << "src port: " << udp_header->src_port << endl;
+    logg(LOG_DEB) << "dst_port port: " << udp_header->dst_port << endl;
+
+    dst_port = udp_header->dst_port;
+    return true;
+}
+
+bool DNS_Filter::process_dns_header(u_char *dns_start, bool &response) {
+    // todo zkontrolovat vic header
+
+    dns_header_struct *dns_header;
+
+    dns_header = (dns_header_struct *) (dns_start);
+    dns_header->id = htons(dns_header->id);
+    dns_header->q_count = htons(dns_header->q_count);
+//    dns_header->ans_count = htons(dns_header->ans_count);
+//    dns_header->auth_count = htons(dns_header->auth_count);
+//    dns_header->add_count = htons(dns_header->add_count);
+
+    response = dns_header->response;
+
+    logg(LOG_DEB) << "qc: " << dns_header->q_count << endl;
+    logg(LOG_DEB) << "response: " << (int) dns_header->response << endl;
+
+    return dns_header->q_count != 1;
+}
+
+bool DNS_Filter::process_dns_body(u_char *dns_body, std::string &domain, int &type, int &class_t) {
+    int octet_id = 0;
+    auto len_octet = (unsigned int) *dns_body;
+
+    while (len_octet != 0) {
+        domain.append((char *) (dns_body + octet_id + 1), len_octet);
+        domain.append(1, '.');
+        octet_id += len_octet + 1;
+        len_octet = (u_char) *(dns_body + octet_id);
+    }
+    domain.erase(domain.length() - 1, 1);
+
+    unsigned short type_us = *(dns_body + octet_id + 1);
+    unsigned short class_us = *(dns_body + octet_id + 2);
+
+    type = type_us;
+    class_t = class_us;
+
+    logg(LOG_DEB) << "domain: " << domain << endl;
+    logg(LOG_DEB) << "type: " << type << endl << "class: " << class_t << endl;
+
+    if (domain.length() <= 0)
+        return false;
+
+    return true;
+}
 
 void DNS_Filter::request_callback(u_char *args, const struct pcap_pkthdr *header, const u_char *packet) {
+    logg(LOG_DEB) << endl;
+
+    DNS_Filter *this_pointer = DNS_Filter::instance;
 
     int et_header_len = 14;
     int ip_header_len;
     int udp_header_len = 8;
     int dns_header_len = 12;
 
-    u_char ip_header_version;
     u_char *ip_header_start;
-
-    udp_header_struct *udp_header;
-    dns_header_struct *dns_header;
-    u_char *dns_body;
-
     ip_header_start = (u_char *) (packet + et_header_len + 2);
-    ip_header_version = ((*ip_header_start) & 0xF0) >> 4;
-
-    //todo musi souhlasit verze ip
-    if (ip_header_version == 4) {
-        struct iphdr *ip4_header;
-        ip4_header = (struct iphdr *) ip_header_start;
-        ip_header_len = ip4_header->ihl * 4;
-        in_addr buf{.s_addr =  ip4_header->saddr};
-        logg(LOG_DEB) << "src IP: " << inet_ntoa(buf) << endl;
-        buf.s_addr = ip4_header->daddr;
-        logg(LOG_DEB) << "dst IP: " << inet_ntoa(buf) << endl;
-
-    } else if (ip_header_version == 6) {
-        struct ip6_hdr *ip6_header;
-        ip6_header = (struct ip6_hdr *) ip_header_start;
-        ip_header_len = 40;
-        char buff[320];
-        inet_ntop(AF_INET6, &(ip6_header->ip6_src), buff, sizeof(ip6_header->ip6_src));
-        logg(LOG_DEB) << "src IP: " << buff << endl;
-        inet_ntop(AF_INET6, &(ip6_header->ip6_dst), buff, sizeof(ip6_header->ip6_dst));
-        logg(LOG_DEB) << "buff IP: " << buff << endl;
-    } else {
-        logg(LOG_DEB) << "error, wrong ip version: " << ip_header_version << endl;
-        return;
+    if (!this_pointer->process_ip(ip_header_start, ip_header_len)) {
+        // error
+        // ignore
     }
 
-    udp_header = (udp_header_struct *) (ip_header_start + ip_header_len);
-    udp_header->dst_port = htons(udp_header->dst_port);
-    udp_header->src_port = htons(udp_header->src_port);
-    udp_header->len = htons(udp_header->len);
-    udp_header->checksum = htons(udp_header->checksum);
+    int dst_port{};
+    this_pointer->process_udp(ip_header_start + ip_header_len, dst_port);
 
-    logg(LOG_DEB) << "src port: " << udp_header->src_port << endl;
-    logg(LOG_DEB) << "dst port: " << udp_header->dst_port << endl;
-
-    dns_header = (dns_header_struct *) (ip_header_start + ip_header_len + udp_header_len);
-    dns_header->id = htons(dns_header->id);
-    dns_header->q_count = htons(dns_header->q_count);
-    dns_header->ans_count = htons(dns_header->ans_count);
-    dns_header->auth_count = htons(dns_header->auth_count);
-    dns_header->add_count = htons(dns_header->add_count);
-
-    // todo zkontrolovat vic header
-    logg(LOG_DEB) << "qc: " << dns_header->q_count << endl;
-    logg(LOG_DEB) << "response: " << (int) dns_header->response << endl;
-
-    dns_body = (u_char *) (ip_header_start + ip_header_len + udp_header_len + dns_header_len);
-
-    int octet_id = 0;
-    unsigned int len_octet = (unsigned int) *dns_body;
-    string question{};
-    if (dns_header->response == 0) {
-        while (len_octet != 0) {
-            question.append((char *) (dns_body + octet_id + 1), len_octet);
-            question.append(1, '.');
-            octet_id += len_octet + 1;
-            len_octet = (u_char) *(dns_body + octet_id);
+    bool response = false;
+    u_char *dns_header_start = ip_header_start + ip_header_len + udp_header_len;
+    if (!this_pointer->process_dns_header(dns_header_start, response)) {
+        if (response) {
+            // restransmit
+        } else {
+            // thats baaaad
         }
-        question.erase(question.length() - 1, 1);
-        logg(LOG_DEB) << "question: " << question << endl;
-        if(DNS_Filter::instance->domain_lookup->searchDomain(question)){
-            logg(LOG_DEB) << "found";
-        }
-        else{
-            logg(LOG_DEB) << "not found";
-        }
-        logg(LOG_DEB) << endl << endl;
     }
 
+    int type, class_t;
+    string domain;
+    u_char *dns_body;
+    dns_body = dns_header_start + dns_header_len;
+    if (this_pointer->process_dns_body(dns_body, domain, type, class_t)) {
+        if (type == 1 and class_t == 1) {
+            // something baad
+        } else {
+            // retransmit or error
+        }
+    }
+
+    if(this_pointer->domain_lookup->searchDomain(domain)){
+        // do dot send
+        // send back info
+    } else{
+        // retransmit to dns server
+    }
 
 }
 
@@ -265,4 +322,9 @@ void DNS_Filter::sigkill_handler(int signum) {
     logg(LOG_VERB) << "Quiting ..." << endl;
     pcap_breakloop(DNS_Filter::instance->handler_pcap);
 }
+
+
+
+
+
 
