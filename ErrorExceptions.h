@@ -57,5 +57,22 @@ public:
     }
 };
 
+class DomainLoopUp_E: public DNSException {
+public:
+    explicit DomainLoopUp_E(std::string msg) {
+        this->code = 5;
+        this->msg = msg;
+    }
+};
+
+class DNS_Filter_E : public DNSException {
+
+public:
+    explicit DNS_Filter_E(std::string msg = "Server is singleton.") {
+        this->code = 5;
+        this->msg = msg;
+    }
+};
+
 
 #endif //ISA_PROJ_ERROREXCEPTIONS_H

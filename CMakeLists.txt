@@ -3,10 +3,10 @@ project(ISA_proj)
 
 set(CMAKE_CXX_STANDARD 14)
 SET(CMAKE_MODULE_PATH "/home/awesome/FIT/ISA/ISA_proj")
-set("-pthread")
+SET(CMAKE_CXX_FLAGS -pthread)
 
 include(FindPCAP.cmake)
 find_package(PCAP REQUIRED)
 
-add_executable(ISA_proj  main.cpp ErrorExceptions.h DNS_Filter.cpp DNS_Filter.h common.h)
+add_executable(ISA_proj  main.cpp ErrorExceptions.h DNS_Filter.cpp DNS_Filter.h common.h DomainLookup.cpp DomainLookup.h)
 target_link_libraries(ISA_proj ${PCAP_LIBRARY} )

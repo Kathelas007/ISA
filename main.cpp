@@ -6,7 +6,7 @@
 
 #include "ErrorExceptions.h"
 #include "DNS_Filter.h"
-//#include "common.h"
+#include "DomainLookup.h"
 
 using namespace std;
 
@@ -74,6 +74,8 @@ void parse_args(int argc, char **argv, dns_args_struct *args) {
 }
 
 int main(int argc, char **argv) {
+    // TODO verbose mode
+
     dns_args_struct args;
 
     // parse args
@@ -84,8 +86,20 @@ int main(int argc, char **argv) {
         e.exit_with_msg();
     }
 
-    //start filter
-//    log(LOG_VERB) << "Starting filter ..." << endl;
+    // prepare dns domain searching
+    DomainLookup *domain_lookup;
+    try {
+        domain_lookup = new DomainLookup(args.filter_file_name);
+    }
+    catch (DomainLoopUp_E &e) {
+        delete domain_lookup;
+        e.exit_with_msg();
+    }
+
+    domain_lookup->searchDomain("facebook.com");
+    return 1;
+
+    //start dns filter
     DNS_Filter *dns_filter;
     try {
         dns_filter = new DNS_Filter(args.server, args.port, args.filter_file_name);
@@ -93,9 +107,12 @@ int main(int argc, char **argv) {
     }
     catch (DNSException &e) {
         delete dns_filter;
+        delete domain_lookup;
+        e.exit_with_msg();
     }
 
     // clean up
     delete dns_filter;
+    delete domain_lookup;
     return 0;
 }
