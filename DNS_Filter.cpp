@@ -33,6 +33,7 @@
 
 #include "DNS_Filter.h"
 #include "ErrorExceptions.h"
+#include "DomainLookup.h"
 
 #include "common.h"
 
@@ -41,7 +42,8 @@ using namespace std;
 bool DNS_Filter::inst_set = false;
 DNS_Filter *DNS_Filter::instance = nullptr;
 
-DNS_Filter::DNS_Filter(string server_a, int port, string filter_file) {
+DNS_Filter::DNS_Filter(DomainLookup *domain_lookup_m, string server_a, int port, string filter_file) {
+    this->domain_lookup = domain_lookup_m;
     this->filter_file = std::move(filter_file);
     this->listening_port = port;
     this->server = std::move(server_a);
@@ -138,8 +140,16 @@ void DNS_Filter::request_callback(u_char *args, const struct pcap_pkthdr *header
             len_octet = (u_char) *(dns_body + octet_id);
         }
         question.erase(question.length() - 1, 1);
-        logg(LOG_DEB) << "question: " << question << endl << endl;
+        logg(LOG_DEB) << "question: " << question << endl;
+        if(DNS_Filter::instance->domain_lookup->searchDomain(question)){
+            logg(LOG_DEB) << "found";
+        }
+        else{
+            logg(LOG_DEB) << "not found";
+        }
+        logg(LOG_DEB) << endl << endl;
     }
+
 
 }
 

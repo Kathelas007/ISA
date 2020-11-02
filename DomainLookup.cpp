@@ -10,12 +10,12 @@
 
 using namespace std;
 
-DomainLookup::DomainLookup(string file_name) {
+DomainLookup::DomainLookup(const string &file_name) {
     ifstream f_handler;
     f_handler.open(file_name.c_str());
 
     if (!f_handler.is_open())
-        throw DomainLoopUp_E("Can not open filter file.");
+        throw DomainLoopUp_E("Can not open filter file " + file_name);
 
     string line;
     while (!f_handler.eof()) {
@@ -29,18 +29,24 @@ DomainLookup::DomainLookup(string file_name) {
     f_handler.close();
 }
 
-void DomainLookup::searchDomain(std::string domain) {
-    vector<string> splitted_domain;
+bool DomainLookup::searchDomain(std::string domain) {
     int pos;
     string token;
+
+    // root domains
+    if (domain.find('.') == std::string::npos) {
+        if (this->domains.count(domain)) {
+            return true;
+        }
+    }
+
+    // other domains
     while ((pos = domain.find('.')) != std::string::npos) {
-        token = domain.substr(0, pos);
-        cout << token << " ";
-        splitted_domain.push_back(token);
+        if (this->domains.count(domain)) {
+            return true;
+        }
+        domain.substr(0, pos);
         domain.erase(0, pos + 1);
     }
-    cout << endl;
-
-    if (this->domains.count(domain))
-        return;
+    return false;
 }

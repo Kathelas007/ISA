@@ -20,13 +20,16 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#include "DomainLookup.h"
+
 class DNS_Filter {
 public:
-    explicit DNS_Filter(std::string server_a, int port, std::string filter_file);
+    explicit DNS_Filter(DomainLookup *domain_lookup_m, std::string server_a, int port, std::string filter_file);
 
     void start();
 
 protected:
+    DomainLookup *domain_lookup;
     int listening_port;
     std::string server;
     int ip_version;

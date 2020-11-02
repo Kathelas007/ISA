@@ -92,17 +92,13 @@ int main(int argc, char **argv) {
         domain_lookup = new DomainLookup(args.filter_file_name);
     }
     catch (DomainLoopUp_E &e) {
-        delete domain_lookup;
         e.exit_with_msg();
     }
-
-    domain_lookup->searchDomain("facebook.com");
-    return 1;
 
     //start dns filter
     DNS_Filter *dns_filter;
     try {
-        dns_filter = new DNS_Filter(args.server, args.port, args.filter_file_name);
+        dns_filter = new DNS_Filter(domain_lookup, args.server, args.port, args.filter_file_name);
         dns_filter->start();
     }
     catch (DNSException &e) {

@@ -13,7 +13,7 @@
 
 class DomainLookup {
 protected:
-    std::unordered_set<std::string> domains;
+    std::unordered_set<std::string> domains{};
 
     // stackoverflow
     static inline void ltrim(std::string &s) {
@@ -32,9 +32,9 @@ protected:
     }
 
 public:
-    DomainLookup(std::string);
+    explicit DomainLookup(const std::string&);
 
-    void searchDomain(std::string);
+    bool searchDomain(std::string);
 };
 
 
