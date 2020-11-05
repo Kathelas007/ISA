@@ -14,34 +14,45 @@
 #include <netdb.h>
 #include <string>
 #include <fstream>
+#include <shared_mutex>
+#include <mutex>
 
 #include <vector>
 
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <vector>
 
 #include "DomainLookup.h"
 
 class DNS_Filter {
 public:
-    explicit DNS_Filter(DomainLookup *domain_lookup_m, std::string server_a, int port, std::string filter_file);
+    explicit DNS_Filter(DomainLookup *domain_lookup_m, std::string dns_server_ip, int port,
+                        std::string filter_server_ip, int af);
+
+    static bool is_IPv4(std::string ip);
+
+    static bool is_IPv6(std::string ip);
+
+    static bool domain_to_IP(std::string &str);
+
+    static std::string get_server_IP(std::string, int &);
+
+    static void get_name_servers_IPs(std::vector<std::string> &IPs, int af);
+
+    static void sigkill_handler(int signum);
 
     void start();
 
 protected:
     DomainLookup *domain_lookup;
-    int listening_port;
-    std::string server;
+    int port;
+    std::string dns_server;
+    std::string filter_server;
     int ip_version;
-    std::string filter_file;
 
-    pcap_t *handler_pcap;
-    pcap_t *pch_res;
-
-    static DNS_Filter *instance;
-    static bool inst_set;
-
-    void set_server_IP();
+    static bool run;
+    static std::shared_mutex run_mutex;
 
     void start_capturing_responses();
 
@@ -55,11 +66,12 @@ protected:
 
     static void request_callback(u_char *args, const struct pcap_pkthdr *header, const u_char *packet);
 
-    static void sigkill_handler(int signum);
-
     bool process_ip(u_char *ip_start, int &length);
+
     bool process_udp(u_char *udp_start, int &dst_port);
+
     bool process_dns_header(u_char *dns_start, bool &response);
+
     bool process_dns_body(u_char *dns_body, std::string &domain, int &type, int &class_t);
 };
 

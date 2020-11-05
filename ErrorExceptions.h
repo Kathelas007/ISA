@@ -74,5 +74,14 @@ public:
     }
 };
 
+class ResolvFire_E : public DNSException {
+
+public:
+    explicit ResolvFire_E(std::string msg = "Server is singleton.") {
+        this->code = 5;
+        this->msg = msg;
+    }
+};
+
 
 #endif //ISA_PROJ_ERROREXCEPTIONS_H

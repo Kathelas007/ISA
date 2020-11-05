@@ -12,7 +12,7 @@
 #include <bits/stdc++.h>
 
 class DomainLookup {
-protected:
+public:
     std::unordered_set<std::string> domains{};
 
     // stackoverflow
@@ -31,8 +31,7 @@ protected:
         rtrim(s);
     }
 
-public:
-    explicit DomainLookup(const std::string&);
+    explicit DomainLookup(const std::string &);
 
     bool searchDomain(std::string);
 };
