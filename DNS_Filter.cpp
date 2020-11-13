@@ -37,19 +37,30 @@
 
 #include "common.h"
 
+#if defined(_GLIBCXX_HAS_GTHREADS) && defined(_GLIBCXX_USE_C99_STDINT_TR1)
+#endif
+
 using namespace std;
 
 bool DNS_Filter::run = true;
-shared_mutex DNS_Filter::run_mutex{};
+//shared_mutex DNS_Filter::run_mutex{};
+vector<int> DNS_Filter::sock_fds{};
 
 
 // ******************* STATIC METHODS ***************************************
 
 void DNS_Filter::sigkill_handler(int signum) {
     logg(LOG_VERB) << "\nQuiting ..." << endl << flush;
-    DNS_Filter::run_mutex.lock();
+
+    // stop run
+//    DNS_Filter::run_mutex.lock();
     DNS_Filter::run = false;
-    DNS_Filter::run_mutex.unlock();
+//    DNS_Filter::run_mutex.unlock();
+
+    // shut down sockets
+    for (auto sck: DNS_Filter::sock_fds) {
+        shutdown(sck, SHUT_RDWR);
+    }
 }
 
 // **** domain, ips handling
@@ -67,173 +78,322 @@ bool DNS_Filter::is_IPv6(string ip) {
 bool DNS_Filter::domain_to_IP(std::string &str) {
     struct hostent *host = gethostbyname(str.c_str());
     if (host) {
-        str = inet_ntoa(*(struct in_addr *) host->h_name);
+        str = inet_ntoa(*(struct in_addr *) host->h_addr_list[0]);
         return true;
     }
     return false;
 }
 
-void DNS_Filter::get_name_servers_IPs(std::vector<std::string> &IPs, int af) {
-    ifstream f_handler;
-    f_handler.open("/etc/resolv.conf");
-
-    if (!f_handler.is_open())
-        throw DNS_Filter_E("Can not open /etc/resolv.conf");
-
-    string line;
-    string ip;
-    int curr_af;
-    while (!f_handler.eof()) {
-        getline(f_handler, line);
-        DomainLookup::trim(line);
-        string a = line.substr(0, 10);
-        if (line.empty() || line[0] == '#' || line.substr(0, 10) != "nameserver")
-            continue;
-        ip = line.substr(10, line.length() - 1);
-        DomainLookup::trim(ip);
-        try {
-            DNS_Filter::get_server_IP(ip, curr_af);
-            if (curr_af == af)
-                IPs.push_back(ip);
-
-        }
-        catch (DNS_Filter_E &e) {
-            logg(LOG_DEB) << "Ignoring resolv IP: " << ip << endl;
-        }
-    }
-    f_handler.close();
-}
-
-
 string DNS_Filter::get_server_IP(string server, int &af) {
     // its IPv4 address
     if (DNS_Filter::is_IPv4(server)) {
-        logg(LOG_DEB) << "Server IPv4: " << server << endl;
         af = AF_INET;
         return server;
     }
         // its IPv6 address
     else if (DNS_Filter::is_IPv6(server)) {
-        logg(LOG_DEB) << "Server IPv6: " << server << endl;
         af = AF_INET6;
         return server;
     }
-    // domain name
 
-    logg(LOG_DEB) << "Server host name: " << server << endl;
+    // its domain name
     if (domain_to_IP(server)) {
 
         if (DNS_Filter::is_IPv4(server)) {
-            logg(LOG_DEB) << "Server IPv4: " << server << endl;
             af = AF_INET;
             return server;
         }
             // its IPv6 address
         else if (DNS_Filter::is_IPv6(server)) {
-            logg(LOG_DEB) << "Server IPv6: " << server << endl;
             af = AF_INET6;
             return server;
         }
-
     }
-
     throw ServerErr_E("Not valid dns_server IP address or domain name.");
-}
-
-
-DNS_Filter::DNS_Filter(DomainLookup *domain_lookup_m, std::string dns_server_ip, int port, std::string filter_server_ip,
-                       int af) {
-    this->domain_lookup = domain_lookup_m;
-    this->port = port;
-    this->dns_server = std::move(dns_server_ip);
-    this->filter_server = std::move(filter_server_ip);
-    this->ip_version = af;
 }
 
 // ******** non STATIC METHODS ************************
 
-void DNS_Filter::start() {
-    int run = 1;
-    do {
-        DNS_Filter::run_mutex.lock_shared();
-        run = DNS_Filter::run;
-        DNS_Filter::run_mutex.unlock_shared();
-    } while (run);
-
-
-//    this->handler_pcap = get_pcap_handler();
-//
-
-//
-//    pcap_loop(this->handler_pcap, 0, request_callback, reinterpret_cast<u_char *>(this));
-//    pcap_close(handler_pcap);
+DNS_Filter::DNS_Filter(DomainLookup *domain_lookup_m, std::string dns_server_ip,
+                       int port, int af) {
+    this->domain_lookup = domain_lookup_m;
+    this->port = port;
+    this->dns_server = std::move(dns_server_ip);
+    this->ip_version = af;
 }
 
-bool DNS_Filter::process_ip(u_char *ip_start, int &length) {
-    char ip_header_version = ((*ip_start) & 0xF0) >> 4;
+int DNS_Filter::retransmit_ipv4(u_char *buffer, int &buffer_len) {
+    struct sockaddr_in dns_server_addr{}, localhost_addr{};
 
-    //todo musi souhlasit verze ip
-    if (ip_header_version == 4) {
-        struct iphdr *ip4_header;
-        ip4_header = (struct iphdr *) ip_start;
-        length = ip4_header->ihl * 4;
-        in_addr buf{.s_addr =  ip4_header->saddr};
-        logg(LOG_DEB) << "src IP: " << inet_ntoa(buf) << endl;
-        buf.s_addr = ip4_header->daddr;
-        logg(LOG_DEB) << "dst IP: " << inet_ntoa(buf) << endl;
-        return true;
+    memset(&dns_server_addr, 0, sizeof(dns_server_addr));
+    memset(&localhost_addr, 0, sizeof(localhost_addr));
 
-    } else if (ip_header_version == 6) {
-        struct ip6_hdr *ip6_header;
-        ip6_header = (struct ip6_hdr *) ip_start;
-        length = 40;
-        char buff[320];
-        inet_ntop(AF_INET6, &(ip6_header->ip6_src), buff, sizeof(ip6_header->ip6_src));
-        logg(LOG_DEB) << "src IP: " << buff << endl;
-        inet_ntop(AF_INET6, &(ip6_header->ip6_dst), buff, sizeof(ip6_header->ip6_dst));
-        logg(LOG_DEB) << "buff IP: " << buff << endl;
-        return true;
-    } else {
-        // todo error
-        logg(LOG_DEB) << "error, wrong ip version: " << ip_header_version << endl;
+    in_addr dns_server_net_ord{};
+    inet_aton(this->dns_server.c_str(), &dns_server_net_ord);
+
+    memcpy(&dns_server_addr.sin_addr, &dns_server_net_ord.s_addr, sizeof(dns_server_addr.sin_addr));
+    dns_server_addr.sin_port = htons(53);
+    dns_server_addr.sin_family = this->ip_version;
+
+    int sock_fd;
+    if ((sock_fd = socket(AF_INET, SOCK_DGRAM, 0)) == -1) {
+        logg(LOG_VERB) << "Can not create socket to dns server." << endl;
         return false;
     }
+
+    timeval tv{};
+    tv.tv_sec = 2;
+
+    setsockopt(sock_fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(timeval));
+
+    if (!sendto(sock_fd, buffer, buffer_len, MSG_CONFIRM,
+                (const struct sockaddr *) &dns_server_addr, sizeof(dns_server_addr))) {
+        logg(LOG_VERB) << "Can not send msg_p to dns server." << endl;
+        return false;
+    }
+
+    int n;
+    socklen_t length = sizeof(dns_server_addr);
+    if ((n = recvfrom(sock_fd, buffer, BUFFER_LEN, 0, (struct sockaddr *) &dns_server_addr, &length)) < 0) {
+        logg(LOG_VERB) << "Did not received msg_p from dns server." << endl;
+        return false;
+    }
+    buffer[n] = '\0';
+    logg(LOG_DEB) << "DNS resp len: " << n << endl;
+    buffer_len = n;
+
+    close(sock_fd);
+    return true;
+
 }
 
-bool DNS_Filter::process_udp(u_char *udp_start, int &dst_port) {
-    udp_header_struct *udp_header;
+int DNS_Filter::retransmit_ipv6(u_char *buffer, int &buffer_len) {
+    struct sockaddr_in6 dns_server_addr{}, localhost_addr{};
 
-    udp_header = (udp_header_struct *) (udp_start);
-    udp_header->dst_port = htons(udp_header->dst_port);
-    udp_header->src_port = htons(udp_header->src_port);
-//    udp_header->len = htons(udp_header->len);
-//    udp_header->checksum = htons(udp_header->checksum);
+    memset(&dns_server_addr, 0, sizeof(dns_server_addr));
+    memset(&localhost_addr, 0, sizeof(localhost_addr));
 
-    logg(LOG_DEB) << "src port: " << udp_header->src_port << endl;
-    logg(LOG_DEB) << "dst_port port: " << udp_header->dst_port << endl;
+    in6_addr dns_server_net_ord{};
+    inet_pton(this->ip_version, this->dns_server.c_str(), &dns_server_net_ord);
 
-    dst_port = udp_header->dst_port;
+    memcpy(&dns_server_addr.sin6_addr, &dns_server_net_ord, sizeof(dns_server_addr.sin6_addr));
+    dns_server_addr.sin6_port = htons(53);
+    dns_server_addr.sin6_family = this->ip_version;
+
+    int sock_fd;
+    if ((sock_fd = socket(AF_INET6, SOCK_DGRAM, 0)) == -1) {
+        logg(LOG_VERB) << "Can not create socket to dns server." << endl;
+        return false;
+    }
+
+    timeval tv{};
+    tv.tv_sec = 2;
+
+    setsockopt(sock_fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(timeval));
+
+    if (!sendto(sock_fd, buffer, buffer_len, MSG_CONFIRM,
+                (const struct sockaddr *) &dns_server_addr, sizeof(dns_server_addr))) {
+        logg(LOG_VERB) << "Can not send msg_p to dns server." << endl;
+        return false;
+    }
+
+    int n;
+    socklen_t length = sizeof(dns_server_addr);
+    if ((n = recvfrom(sock_fd, buffer, BUFFER_LEN, 0, (struct sockaddr *) &dns_server_addr, &length)) < 0) {
+        logg(LOG_VERB) << "Did not received msg_p from dns server." << endl;
+        return false;
+    }
+    buffer[n] = '\0';
+    logg(LOG_DEB) << "DNS resp len: " << n << endl;
+    buffer_len = n;
+
+    close(sock_fd);
     return true;
 }
 
-bool DNS_Filter::process_dns_header(u_char *dns_start, bool &response) {
-    // todo zkontrolovat vic header
+int DNS_Filter::retransmit(u_char *buffer, int &buffer_len) {
+    // client communicating with outer dns server
 
+    if (this->ip_version == AF_INET)
+        return this->retransmit_ipv4(buffer, buffer_len);
+    else
+        return this->retransmit_ipv6(buffer, buffer_len);
+}
+
+void DNS_Filter::set_dns_refused(u_char *buffer, int &buff_len) {
+    dns_header_struct *dns_header;
+    dns_header = (dns_header_struct *) buffer;
+    dns_header->reply_code = 5;
+}
+
+void DNS_Filter::set_dns_notimplemented(u_char *buffer, int &buff_len) {
+    dns_header_struct *dns_header;
+    dns_header = (dns_header_struct *) buffer;
+    dns_header->reply_code = 4;
+}
+
+
+void DNS_Filter::get_response(u_char *buffer, int &n) {
+    string domain;
+    int type, class_t;
+    bool response;
+    int dns_header_len = 12;
+
+    if (!DNS_Filter::process_dns_body((u_char *) (&buffer[dns_header_len]), domain, type, class_t)) {
+        if (type != 1) {
+            // no A record
+            this->set_dns_notimplemented(buffer, n);
+        } else {
+            // domain is zero length
+            this->set_dns_refused(buffer, n);
+        }
+        return;
+    }
+
+    if (!DNS_Filter::process_dns_header((&buffer[0]), response)) {
+        if (response) {
+            // not a query
+            this->set_dns_refused(buffer, n);
+        } else {
+            // bad question count
+            this->set_dns_notimplemented(buffer, n);
+        }
+        return;
+    }
+
+    if (this->domain_lookup->searchDomain(domain)) {
+        // refused
+        //filtered
+        this->set_dns_refused(buffer, n);
+        logg(LOG_VERB) << "Request to domain " << domain << " filtered." << endl;
+    } else {
+        this->retransmit(buffer, n);
+    }
+}
+
+void DNS_Filter::sent_response(u_char *buffer, int &buffer_len, sockaddr_in client_addr) {
+
+}
+
+void DNS_Filter::start_ipv4() {
+    int sock_fd;
+    u_char buffer[BUFFER_LEN];
+
+    sockaddr_in server_addr{}, client_addr{};
+
+    memset(&server_addr, 0, sizeof(server_addr));
+    memset(&client_addr, 0, sizeof(client_addr));
+
+    server_addr.sin_family = this->ip_version;
+    server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    server_addr.sin_port = htons(this->port);
+
+    if ((sock_fd = socket(this->ip_version, SOCK_DGRAM, 0)) == -1)
+        throw DNS_Filter_E("Can not open socket.");
+
+    DNS_Filter::sock_fds.push_back(sock_fd);
+
+    if (bind(sock_fd, (struct sockaddr *) &server_addr, sizeof(server_addr)) == -1) {
+        cout << strerror(errno) << endl;
+        throw DNS_Filter_E("Can not bind port to socket.");
+    }
+
+    socklen_t length = sizeof(server_addr);
+    int n;
+    while (((n = recvfrom(sock_fd, buffer, BUFFER_LEN, 0, (struct sockaddr *) &client_addr, &length)) >= 0)
+           && DNS_Filter::still_run()) {
+
+        logg(LOG_VERB) << endl;
+        logg(LOG_DEB) << "Request from: " << inet_ntoa(client_addr.sin_addr) << endl;
+        logg(LOG_DEB) << "DNS req len: " << n << endl;
+
+        this->get_response(buffer, n);
+
+        if (!sendto(sock_fd, buffer, n, MSG_DONTWAIT,
+                    (const struct sockaddr *) &client_addr, sizeof(client_addr))) {
+            logg(LOG_VERB) << "Can not send dns response to client." << endl;
+        }
+    }
+    close(sock_fd);
+}
+
+void DNS_Filter::start_ipv6() {
+    int sock_fd;
+    u_char buffer[BUFFER_LEN];
+
+    sockaddr_in6 server_addr{}, client_addr{};
+
+    memset(&server_addr, 0, sizeof(server_addr));
+    memset(&client_addr, 0, sizeof(client_addr));
+
+    server_addr.sin6_family = this->ip_version;
+    server_addr.sin6_addr = IN6ADDR_ANY_INIT;
+    server_addr.sin6_port = htons(this->port);
+
+    if ((sock_fd = socket(this->ip_version, SOCK_DGRAM, 0)) == -1)
+        throw DNS_Filter_E("Can not open socket.");
+
+    DNS_Filter::sock_fds.push_back(sock_fd);
+
+    if (bind(sock_fd, (struct sockaddr *) &server_addr, sizeof(server_addr)) == -1) {
+        cout << strerror(errno) << endl;
+        throw DNS_Filter_E("Can not bind port to socket.");
+    }
+
+    socklen_t length = sizeof(server_addr);
+    int n;
+    while (((n = recvfrom(sock_fd, buffer, BUFFER_LEN, 0, (struct sockaddr *) &client_addr, &length)) >= 0)
+           && DNS_Filter::still_run()) {
+
+        logg(LOG_VERB) << endl;
+        char buf6[INET6_ADDRSTRLEN];
+        inet_ntop(this->ip_version, &(client_addr.sin6_addr), buf6, sizeof(buf6));
+        logg(LOG_DEB) << "Request from: " << buf6 << endl;
+        logg(LOG_DEB) << "DNS req len: " << n << endl;
+
+        this->get_response(buffer, n);
+
+        if (!sendto(sock_fd, buffer, n, MSG_DONTWAIT,
+                    (const struct sockaddr *) &client_addr, sizeof(client_addr))) {
+            logg(LOG_VERB) << "Can not send back dns response to client." << endl;
+        }
+    }
+    close(sock_fd);
+}
+
+
+void DNS_Filter::start() {
+    // local dns filter server
+    if (this->ip_version == AF_INET)
+        this->start_ipv4();
+    else
+        this->start_ipv6();
+}
+
+
+bool DNS_Filter::still_run() {
+    bool run = DNS_Filter::run;
+
+    return run;
+}
+
+bool DNS_Filter::process_dns_header(u_char *dns_start, bool &response) {
     dns_header_struct *dns_header;
 
     dns_header = (dns_header_struct *) (dns_start);
-    dns_header->id = htons(dns_header->id);
-    dns_header->q_count = htons(dns_header->q_count);
-//    dns_header->ans_count = htons(dns_header->ans_count);
-//    dns_header->auth_count = htons(dns_header->auth_count);
-//    dns_header->add_count = htons(dns_header->add_count);
+
+    short id, count;
+    memcpy(&id, &(dns_header->id), 2);
+    memcpy(&count, &(dns_header->q_count), 2);
+
+    id = htons(id);
+    count = htons(count);
 
     response = dns_header->response;
 
-    logg(LOG_DEB) << "qc: " << dns_header->q_count << endl;
-    logg(LOG_DEB) << "response: " << (int) dns_header->response << endl;
+    logg(LOG_DEB) << "qc: " << count << endl;
 
-    return dns_header->q_count != 1;
+    return htons(count) != 1;
 }
 
 bool DNS_Filter::process_dns_body(u_char *dns_body, std::string &domain, int &type, int &class_t) {
@@ -257,130 +417,11 @@ bool DNS_Filter::process_dns_body(u_char *dns_body, std::string &domain, int &ty
     logg(LOG_DEB) << "domain: " << domain << endl;
     logg(LOG_DEB) << "type: " << type << endl << "class: " << class_t << endl;
 
-    if (domain.length() <= 0 || type != 1 || class_t != 1)
+    if (domain.length() <= 0 || type != 1)
         return false;
 
     return true;
 }
-
-void DNS_Filter::request_callback(u_char *args, const struct pcap_pkthdr *header, const u_char *packet) {
-    logg(LOG_DEB) << endl;
-//
-//    DNS_Filter *this_pointer = DNS_Filter::instance;
-//
-//    int et_header_len = 14;
-//    int ip_header_len;
-//    int udp_header_len = 8;
-//    int dns_header_len = 12;
-//
-//    u_char *ip_header_start;
-//    ip_header_start = (u_char *) (packet + et_header_len + 2);
-//    if (!this_pointer->process_ip(ip_header_start, ip_header_len)) {
-//        // error
-//        // ignore
-//    }
-//
-//    int dst_port{};
-//    this_pointer->process_udp(ip_header_start + ip_header_len, dst_port);
-//
-//    bool response = false;
-//    u_char *dns_header_start = ip_header_start + ip_header_len + udp_header_len;
-//    if (!this_pointer->process_dns_header(dns_header_start, response)) {
-//        if (response) {
-//            // restransmit
-//        } else {
-//            // thats baaaad
-//        }
-//    }
-//
-//    int type, class_t;
-//    string domain;
-//    u_char *dns_body;
-//    dns_body = dns_header_start + dns_header_len;
-//    if (this_pointer->process_dns_body(dns_body, domain, type, class_t)) {
-//        if (type == 1 and class_t == 1) {
-//            // something baad
-//        } else {
-//            // retransmit or error
-//        }
-//    }
-//
-//    if (this_pointer->domain_lookup->searchDomain(domain)) {
-//        // do dot send
-//        // send back info
-//    } else {
-//        // retransmit to dns dns_server
-//    }
-
-}
-
-
-void DNS_Filter::start_capturing_requests() {
-
-}
-
-void DNS_Filter::start_capturing_responses() {
-
-}
-
-pcap_t *DNS_Filter::get_pcap_handler() {
-    bpf_u_int32 maskp;
-    bpf_u_int32 netp;
-
-    // check interface
-    if (pcap_lookupnet(NULL, &netp, &maskp, this->err_buf) != 0) {
-        logg(LOG_DEB) << "Pcap:" << this->err_buf << endl;
-        throw DeviceErr_E("Can not find working interface.");
-    }
-
-    // get handler
-    pcap_t *handler;
-    handler = pcap_open_live(NULL, BUFSIZ, 0, 2000, this->err_buf);
-
-    if (handler == nullptr) {
-        logg(LOG_DEB) << "Pcap:" << this->err_buf << endl;
-        throw PcapErr_E("Can not get handler.");
-    }
-
-    // set processing of handling packages as non-blocking
-    pcap_setnonblock(handler, 1, err_buf);
-
-    // set filter
-    this->set_pcap_filter(handler, maskp);
-
-    return handler;
-}
-
-void DNS_Filter::set_pcap_filter(pcap_t *handler, bpf_u_int32 maskp) const {
-    string filter_contend;
-    bpf_program filter{};
-
-    // set ip version
-    if (this->ip_version == AF_INET)
-        filter_contend = "ip";
-    else
-        filter_contend = "ip6";
-
-    // set udp          ip && udp dst port 53
-    filter_contend += " && udp dst port " + to_string(this->port);
-
-    // setting and compiling filter
-    if (pcap_compile(handler, &filter, filter_contend.c_str(), 0, maskp) != 0) {
-        pcap_close(handler);
-        logg(LOG_DEB) << "Pcap compile: " << pcap_geterr(handler) << endl;
-        throw PcapErr_E("Can not compile filter.");
-    }
-
-    if (pcap_setfilter(handler, &filter) != 0) {
-        pcap_close(handler);
-        logg(LOG_DEB) << "Pcap filter: " << pcap_geterr(handler) << endl;
-        throw PcapErr_E("Can not set filter.");
-    }
-
-    logg(LOG_DEB) << "Pcap: set filter '" << filter_contend.c_str() << "' " << pcap_geterr(handler) << endl;
-
-}
-
 
 
 

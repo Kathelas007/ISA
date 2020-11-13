@@ -25,10 +25,11 @@
 
 #include "DomainLookup.h"
 
+#define BUFFER_LEN 1024
+
 class DNS_Filter {
 public:
-    explicit DNS_Filter(DomainLookup *domain_lookup_m, std::string dns_server_ip, int port,
-                        std::string filter_server_ip, int af);
+    explicit DNS_Filter(DomainLookup *domain_lookup_m, std::string dns_server_ip, int port, int af);
 
     static bool is_IPv4(std::string ip);
 
@@ -38,8 +39,6 @@ public:
 
     static std::string get_server_IP(std::string, int &);
 
-    static void get_name_servers_IPs(std::vector<std::string> &IPs, int af);
-
     static void sigkill_handler(int signum);
 
     void start();
@@ -48,31 +47,34 @@ protected:
     DomainLookup *domain_lookup;
     int port;
     std::string dns_server;
-    std::string filter_server;
     int ip_version;
 
+    static std::vector<int> sock_fds;
     static bool run;
-    static std::shared_mutex run_mutex;
 
-    void start_capturing_responses();
+    void start_ipv4();
 
-    void start_capturing_requests();
+    void start_ipv6();
 
-    char err_buf[PCAP_ERRBUF_SIZE];
-
-    pcap_t *get_pcap_handler();
-
-    void set_pcap_filter(pcap_t *, bpf_u_int32) const;
-
-    static void request_callback(u_char *args, const struct pcap_pkthdr *header, const u_char *packet);
-
-    bool process_ip(u_char *ip_start, int &length);
-
-    bool process_udp(u_char *udp_start, int &dst_port);
+    bool still_run();
 
     bool process_dns_header(u_char *dns_start, bool &response);
 
     bool process_dns_body(u_char *dns_body, std::string &domain, int &type, int &class_t);
+
+    void get_response(u_char *buffer, int &n);
+
+    void sent_response(u_char *buffer, int &buffer_len, sockaddr_in client_addr);
+
+    int retransmit_ipv4(u_char *buffer, int &buff_len);
+
+    int retransmit_ipv6(u_char *buffer, int &buff_len);
+
+    int retransmit(u_char *buffer, int &buff_len);
+
+    void set_dns_refused(u_char *buffer, int &buff_len);
+
+    void set_dns_notimplemented(u_char *buffer, int &buff_len);
 };
 
 

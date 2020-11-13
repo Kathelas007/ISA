@@ -7,15 +7,10 @@
 class DNSException : public std::exception {
 protected:
     int code{};
-    std::string msg;
+    std::string msg_p{};
 
 public:
-    const char *what() noexcept {
-        return msg.c_str();
-    }
-
-    void exit_with_msg() noexcept {
-        std::cerr << msg.c_str() << std::endl;
+    void exit_with_code() noexcept {
         exit(code);
     }
 };
@@ -24,12 +19,12 @@ class BadArgs_E : public DNSException {
 public:
     BadArgs_E() {
         this->code = 1;
-        this->msg = "Incorrect arguments.";
+        std::cerr << "Incorrect arguments." << std::endl;
     }
 
     explicit BadArgs_E(std::string msg) {
         this->code = 1;
-        this->msg = msg;
+        std::cerr << msg << std::endl;
     }
 };
 
@@ -37,49 +32,49 @@ class ServerErr_E : public DNSException {
 public:
     explicit ServerErr_E(std::string msg) {
         this->code = 2;
-        this->msg = msg;
+        std::cerr << msg << std::endl;
     }
 };
 
-class DeviceErr_E: public DNSException {
+class DeviceErr_E : public DNSException {
 public:
     explicit DeviceErr_E(std::string msg) {
         this->code = 3;
-        this->msg = msg;
+        std::cerr << msg << std::endl;
     }
 };
 
-class PcapErr_E: public DNSException {
+class PcapErr_E : public DNSException {
 public:
     explicit PcapErr_E(std::string msg) {
         this->code = 4;
-        this->msg = msg;
+        std::cerr << msg << std::endl;
     }
 };
 
-class DomainLoopUp_E: public DNSException {
+class DomainLoopUp_E : public DNSException {
 public:
     explicit DomainLoopUp_E(std::string msg) {
         this->code = 5;
-        this->msg = msg;
+        std::cerr << msg << std::endl;
     }
 };
 
 class DNS_Filter_E : public DNSException {
 
 public:
-    explicit DNS_Filter_E(std::string msg = "Server is singleton.") {
+    explicit DNS_Filter_E(std::string msg) {
         this->code = 5;
-        this->msg = msg;
+        std::cerr << msg << std::endl;
     }
 };
 
 class ResolvFire_E : public DNSException {
 
 public:
-    explicit ResolvFire_E(std::string msg = "Server is singleton.") {
+    explicit ResolvFire_E(std::string msg) {
         this->code = 5;
-        this->msg = msg;
+        std::cerr << msg << std::endl;
     }
 };
 

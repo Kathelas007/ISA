@@ -8,14 +8,14 @@ enum log_level_t {
     LOG_DIS,
     LOG_VERB,
     LOG_DEB
-} log_level = LOG_DEB;
-
-class mystreambuf : public std::streambuf {
 };
 
-mystreambuf no_srtreambuf;
-std::ostream no_cout(&no_srtreambuf);
-#define logg(x) ((x >= log_level)? std::cout : no_cout)
+extern log_level_t log_level;
 
+class mystreambuf;
+
+extern mystreambuf no_srtreambuf;
+extern std::ostream no_cout;
+#define logg(x) ((x <= log_level)? std::cout : no_cout)
 
 #endif //ISA_PROJ_MAIN_H
