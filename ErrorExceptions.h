@@ -1,3 +1,10 @@
+/**
+ * author: xmusko00
+ * email: xmusko00@vutbr.cz
+ *
+ * file: ErrorException.cpp
+ */
+
 #ifndef ISA_PROJ_ERROREXCEPTIONS_H
 #define ISA_PROJ_ERROREXCEPTIONS_H
 
@@ -10,7 +17,7 @@ protected:
     std::string msg_p{};
 
 public:
-    void exit_with_code() noexcept {
+    void exit_with_code() const noexcept {
         exit(code);
     }
 };

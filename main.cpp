@@ -1,9 +1,15 @@
+/**
+ * author: xmusko00
+ * email: xmusko00@vutbr.cz
+ *
+ * file: main.cpp
+ */
+
 #include <iostream>
 #include <cstdlib>
 #include <unistd.h>
 #include <string>
 #include <cstring>
-
 
 #include "ErrorExceptions.h"
 #include "DomainLookup.h"
@@ -78,7 +84,9 @@ void parse_args(int argc, char **argv, dns_args_struct *args) {
 
 int main(int argc, char **argv) {
     // TODO verbose mode
-    // TODO sigkill, ipv6
+    // TODO SERVFAIL 	RCODE:2  Server failed to complete the DNS request
+    //
+    //
 
     // parse args
     dns_args_struct args;
@@ -88,6 +96,11 @@ int main(int argc, char **argv) {
     catch (BadArgs_E &e) {
         e.exit_with_code();
     }
+
+    if (args.verbose)
+        log_level = LOG_VERB;
+    else
+        log_level = LOG_DIS;
 
     // prepare dns domain searching
     DomainLookup *domain_lookup;
@@ -108,7 +121,7 @@ int main(int argc, char **argv) {
         e.exit_with_code();
     }
 
-    logg(LOG_VERB) << "Outer DNS server IP: " << outer_server_IP << endl;
+    logg(LOG_VERB) << "DNS server IP: " << outer_server_IP << endl;
 
     // init filter servers
     auto dns_filter = new DNS_Filter(domain_lookup, args.server, args.port, af);

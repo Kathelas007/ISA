@@ -1,3 +1,12 @@
+/**
+ * author: xmusko00
+ * email: xmusko00@vutbr.cz
+ *
+ * file: common.cpp
+ * description: basic logger
+ */
+
+
 #ifndef ISA_PROJ_MAIN_H
 #define ISA_PROJ_MAIN_H
 

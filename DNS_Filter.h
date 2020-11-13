@@ -1,6 +1,10 @@
-//
-// Created by awesome on 26.10.20.
-//
+/**
+ * author: xmusko00
+ * email: xmusko00@vutbr.cz
+ *
+ * file: DNS_Filter.h
+ */
+
 
 #ifndef ISA_PROJ_DNS_FILTER_H
 #define ISA_PROJ_DNS_FILTER_H
@@ -75,33 +79,30 @@ protected:
     void set_dns_refused(u_char *buffer, int &buff_len);
 
     void set_dns_notimplemented(u_char *buffer, int &buff_len);
-};
-
 
 #pragma pack(push, 1)
-typedef struct {
-    unsigned short int src_port;
-    unsigned short int dst_port;
-    unsigned short int len;
-    unsigned short int checksum;
-} udp_header_struct;
+    typedef struct {
+        unsigned short int src_port;
+        unsigned short int dst_port;
+        unsigned short int len;
+        unsigned short int checksum;
+    } udp_header_struct;
 
-#pragma pack(push, 1)
-typedef struct {
-    unsigned short id; // identification number
+    typedef struct {
+        unsigned short id; // identification number
 
 # if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-    unsigned char recursion_desired: 1;
-    unsigned char truncation: 1;
-    unsigned char authoritative_answer: 1;
-    unsigned char opcode: 4; // opcode standart == 0
-    unsigned char response: 1; // query == 0 or sersponse
+        unsigned char recursion_desired: 1;
+        unsigned char truncation: 1;
+        unsigned char authoritative_answer: 1;
+        unsigned char opcode: 4; // opcode standart == 0
+        unsigned char response: 1; // query == 0 or sersponse
 
-    unsigned char reply_code: 4;
-    unsigned char reserved: 3;
-    unsigned char recursion_available: 1;
+        unsigned char reply_code: 4;
+        unsigned char reserved: 3;
+        unsigned char recursion_available: 1;
 # else
-    unsigned char response: 1; // query == 0 or sersponse
+        unsigned char response: 1; // query == 0 or sersponse
     unsigned char opcode: 4; // opcode standart == 0
     unsigned char authoritative_answer: 1;
     unsigned char truncation: 1;
@@ -111,11 +112,14 @@ typedef struct {
     unsigned char reserved: 3;
     unsigned char reply_code: 4;
 #endif
-    unsigned short q_count; // number of question entries
-    unsigned short ans_count; // number of answer entries
-    unsigned short auth_count; // number of authority entries
-    unsigned short add_count; // number of resource entries
-} dns_header_struct;
+        unsigned short q_count; // number of question entries
+        unsigned short ans_count; // number of answer entries
+        unsigned short auth_count; // number of authority entries
+        unsigned short add_count; // number of resource entries
+    } dns_header_struct;
+
+#pragma pack(pop)
+};
 
 
 #endif //ISA_PROJ_DNS_FILTER_H

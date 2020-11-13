@@ -1,4 +1,11 @@
-#include <cstdlib>
+/**
+ * author: xmusko00
+ * email: xmusko00@vutbr.cz
+ *
+ * file: common.h
+ * description: basic logger
+ */
+
 #include <string>
 #include <ostream>
 
