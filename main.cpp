@@ -27,8 +27,12 @@ typedef struct {
 } dns_args_struct;
 
 void print_help() {
-    cout << "help" << endl;
-    exit(0);
+    cout << "Dns filter server\n"
+            "usage: dns -s server [-p port] -f filter_file [-v]\n"
+            "\t-s\tIP address or domain name to dns resolve server\n"
+            "\t-p\tnumber port server will be listening on\n"
+            "\t-f\tname of file with filtered domain\n"
+            "\t-v\tverbose mode" << endl;
 }
 
 /**
@@ -44,20 +48,27 @@ void parse_args(int argc, char **argv, dns_args_struct *args) {
     size_t idx_stoi;
 
     //getting opts
-    while ((opt = getopt(argc, argv, "s:p:f:")) != -1) {
+    while ((opt = getopt(argc, argv, "s:p:f:hv")) != -1) {
         switch (opt) {
             case 's':
                 args->server = optarg;
                 break;
             case 'p':
                 port_str = optarg;
-                args->port = stoi(optarg, &idx_stoi);
+                try{
+                    args->port = stoi(optarg, &idx_stoi);
+                }
+                catch(invalid_argument &e){
+                    print_help();
+                    throw BadArgs_E("Port must be a number.");
+                }
                 break;
             case 'f':
                 args->filter_file_name = optarg;
                 break;
             case 'h':
                 print_help();
+                exit(0);
                 break;
             case 'v':
                 args->verbose = true;
@@ -69,24 +80,31 @@ void parse_args(int argc, char **argv, dns_args_struct *args) {
     }
 
     // check mandatory opts
-    if (args->server.empty())
+    if (args->server.empty()) {
+        print_help();
         throw BadArgs_E("Server argument required");
-    if (args->filter_file_name.empty())
+    }
+    if (args->filter_file_name.empty()) {
+        print_help();
         throw BadArgs_E("Filter file argument required.");
+    }
 
     //check proper port format
-    if (idx_stoi != port_str.length())
+    if (idx_stoi != port_str.length()){
+        print_help();
         throw BadArgs_E("Port must be a number.");
-    if (args->port < 0 || args->port > 65535)
+    }
+    if (args->port < 0 || args->port > 65535){
+        print_help();
         throw BadArgs_E("Port must be a number in range <0, 65535>");
+    }
 
 }
 
 int main(int argc, char **argv) {
     // TODO verbose mode
     // TODO SERVFAIL 	RCODE:2  Server failed to complete the DNS request
-    //
-    //
+    //  vlakna
 
     // parse args
     dns_args_struct args;

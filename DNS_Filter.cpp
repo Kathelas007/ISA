@@ -359,6 +359,7 @@ void DNS_Filter::start_ipv4() {
     // start server and catch dns requests
     socklen_t length = sizeof(server_addr);
     int n;
+    pid_t pid;
     while (((n = recvfrom(sock_fd, buffer, BUFFER_LEN, 0, (struct sockaddr *) &client_addr, &length)) >= 0)
            && DNS_Filter::still_run()) {
 
@@ -366,12 +367,21 @@ void DNS_Filter::start_ipv4() {
         logg(LOG_DEB) << "Request from: " << inet_ntoa(client_addr.sin_addr) << endl;
         logg(LOG_DEB) << "DNS req len: " << n << endl;
 
-        this->get_response(buffer, n);
+        if ((pid = fork()) > 0) {  // this is parent process
+            continue;
+        } else if (pid == 0) { // child process
+            this->get_response(buffer, n);
 
-        if (!sendto(sock_fd, buffer, n, MSG_DONTWAIT,
-                    (const struct sockaddr *) &client_addr, sizeof(client_addr))) {
-            logg(LOG_VERB) << "Can not send dns response to client." << endl;
+            if (!sendto(sock_fd, buffer, n, MSG_DONTWAIT,
+                        (const struct sockaddr *) &client_addr, sizeof(client_addr))) {
+                logg(LOG_VERB) << "Can not send dns response to client." << endl;
+            }
+            exit(0); // exit child
+        } else {
+            logg(LOG_DEB) << "Can not create fork.";
         }
+
+
     }
     close(sock_fd);
 }
