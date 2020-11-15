@@ -7,7 +7,6 @@
 
 
 #include <iostream>
-#include <fstream>
 
 #include "DomainLookup.h"
 #include "ErrorExceptions.h"

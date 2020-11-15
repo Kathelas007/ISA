@@ -9,13 +9,12 @@
 #include <cstdlib>
 #include <unistd.h>
 #include <string>
-#include <cstring>
 
 #include "ErrorExceptions.h"
 #include "DomainLookup.h"
-#include "DNS_Filter.h"
+#include "DNSFilter.h"
 
-#include "common.h"
+#include "logger.h"
 
 using namespace std;
 
@@ -133,19 +132,19 @@ int main(int argc, char **argv) {
     string outer_server_IP;
     int af;
     try {
-        outer_server_IP = DNS_Filter::get_server_IP(args.server, af);
+        outer_server_IP = DNSFilter::get_server_IP(args.server, af);
     }
-    catch (ServerErr_E &e) {
+    catch (BadIpDomain_E &e) {
         e.exit_with_code();
     }
 
     logg(LOG_VERB) << "DNS server IP: " << outer_server_IP << endl;
 
     // init filter servers
-    auto dns_filter = new DNS_Filter(domain_lookup, args.server, args.port, af);
+    auto dns_filter = new DNSFilter(domain_lookup, args.server, args.port, af);
 
     // set sigkill handler in case of CTRL+C
-    signal(SIGINT, DNS_Filter::sigkill_handler);
+    signal(SIGINT, DNSFilter::sigterm_handler);
 
     dns_filter->start();
 

@@ -9,7 +9,7 @@
 #include <string>
 #include <ostream>
 
-#include "common.h"
+#include "logger.h"
 
 log_level_t log_level = LOG_DEB;
 

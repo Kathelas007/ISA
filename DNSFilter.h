@@ -2,38 +2,24 @@
  * author: xmusko00
  * email: xmusko00@vutbr.cz
  *
- * file: DNS_Filter.h
+ * file: DNSFilter.h
  */
 
 
-#ifndef ISA_PROJ_DNS_FILTER_H
-#define ISA_PROJ_DNS_FILTER_H
+#ifndef ISA_PROJ_DNSFILTER_H
+#define ISA_PROJ_DNSFILTER_H
 
-#include <pcap.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <string>
 #include <netdb.h>
 #include <string>
-#include <fstream>
-#include <shared_mutex>
-#include <mutex>
-
-#include <vector>
-
-#include <netinet/in.h>
-#include <arpa/inet.h>
 #include <vector>
 
 #include "DomainLookup.h"
 
 #define BUFFER_LEN 1024
 
-class DNS_Filter {
+class DNSFilter {
 public:
-    explicit DNS_Filter(DomainLookup *domain_lookup_m, std::string dns_server_ip, int port, int af);
+    explicit DNSFilter(DomainLookup *domain_lookup_m, std::string dns_server_ip, int port, int af);
 
     static bool is_IPv4(std::string ip);
 
@@ -43,7 +29,7 @@ public:
 
     static std::string get_server_IP(std::string, int &);
 
-    static void sigkill_handler(int signum);
+    static void sigterm_handler(int signum);
 
     void start();
 
@@ -122,4 +108,4 @@ protected:
 };
 
 
-#endif //ISA_PROJ_DNS_FILTER_H
+#endif //ISA_PROJ_DNSFILTER_H

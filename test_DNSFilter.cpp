@@ -12,43 +12,43 @@
 #include <vector>
 #include <string>
 
-#include "DNS_Filter.h"
+#include "DNSFilter.h"
 #include "ErrorExceptions.h"
 #include "DomainLookup.h"
 
 using namespace std;
 
-DNS_Filter *df;
+DNSFilter *df;
 DomainLookup *dl;
 vector<bool (*)()> test_functions;
 
 bool test_is_IPv4() {
-    return DNS_Filter::is_IPv4("127.0.0.1");
+    return DNSFilter::is_IPv4("127.0.0.1");
 }
 
 bool test_is_not_IPv4() {
-    return !(DNS_Filter::is_IPv4("127.0.0") or DNS_Filter::is_IPv4("2001:4860:4860::8888") or
-             DNS_Filter::is_IPv4("google.com"));
+    return !(DNSFilter::is_IPv4("127.0.0") or DNSFilter::is_IPv4("2001:4860:4860::8888") or
+             DNSFilter::is_IPv4("google.com"));
 }
 
 bool test_is_IPv6() {
-    return DNS_Filter::is_IPv6("2001:4860:4860::8888");
+    return DNSFilter::is_IPv6("2001:4860:4860::8888");
 }
 
 bool test_is_not_IPv6() {
-    return !(DNS_Filter::is_IPv6("2001:4860:4860") or DNS_Filter::is_IPv6("127.0.0.1") or
-             DNS_Filter::is_IPv6("google.com"));
+    return !(DNSFilter::is_IPv6("2001:4860:4860") or DNSFilter::is_IPv6("127.0.0.1") or
+             DNSFilter::is_IPv6("google.com"));
 }
 
 bool test_domain_to_IP() {
     string dom = "google.com";
-    DNS_Filter::domain_to_IP(dom);
+    DNSFilter::domain_to_IP(dom);
     return ("172.217.23.238" == dom);
 }
 
 bool test_get_server_ip() {
     int af = 2;
-    return ("172.217.23.238" == DNS_Filter::get_server_IP("google.com", af));
+    return ("172.217.23.238" == DNSFilter::get_server_IP("google.com", af));
 }
 
 void setUp() {
@@ -61,7 +61,7 @@ void setUp() {
     filter_file.close();
 
     dl = new DomainLookup("test_filter.fil");
-    df = new DNS_Filter(dl, "8.8.8.8", 1234, 2);
+    df = new DNSFilter(dl, "8.8.8.8", 1234, 2);
 
     test_functions.push_back(test_is_IPv4);
     test_functions.push_back(test_is_not_IPv4);

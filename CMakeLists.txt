@@ -8,5 +8,5 @@ SET(CMAKE_CXX_FLAGS -pthread)
 include(FindPCAP.cmake)
 find_package(PCAP REQUIRED)
 
-add_executable(ISA_proj  main.cpp ErrorExceptions.h DNS_Filter.cpp DNS_Filter.h common.h common.cpp DomainLookup.cpp DomainLookup.h)
+add_executable(ISA_proj  main.cpp ErrorExceptions.h DNSFilter.cpp DNSFilter.h logger.h logger.cpp DomainLookup.cpp DomainLookup.h)
 target_link_libraries(ISA_proj ${PCAP_LIBRARY} )

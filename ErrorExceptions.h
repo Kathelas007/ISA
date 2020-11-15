@@ -35,55 +35,31 @@ public:
     }
 };
 
-class ServerErr_E : public DNSException {
+class DomainLoopUp_E : public DNSException {
 public:
-    explicit ServerErr_E(std::string msg) {
+    explicit DomainLoopUp_E(std::string msg) {
         this->code = 2;
         std::cerr << msg << std::endl;
     }
 };
 
-class DeviceErr_E : public DNSException {
+class Socket_E : public DNSException {
+
 public:
-    explicit DeviceErr_E(std::string msg) {
+    explicit Socket_E(std::string msg) {
         this->code = 3;
         std::cerr << msg << std::endl;
     }
 };
 
-class PcapErr_E : public DNSException {
+class BadIpDomain_E : public DNSException {
 public:
-    explicit PcapErr_E(std::string msg) {
+    explicit BadIpDomain_E(std::string msg) {
         this->code = 4;
         std::cerr << msg << std::endl;
     }
 };
 
-class DomainLoopUp_E : public DNSException {
-public:
-    explicit DomainLoopUp_E(std::string msg) {
-        this->code = 5;
-        std::cerr << msg << std::endl;
-    }
-};
-
-class DNS_Filter_E : public DNSException {
-
-public:
-    explicit DNS_Filter_E(std::string msg) {
-        this->code = 5;
-        std::cerr << msg << std::endl;
-    }
-};
-
-class ResolvFire_E : public DNSException {
-
-public:
-    explicit ResolvFire_E(std::string msg) {
-        this->code = 5;
-        std::cerr << msg << std::endl;
-    }
-};
 
 
 #endif //ISA_PROJ_ERROREXCEPTIONS_H
