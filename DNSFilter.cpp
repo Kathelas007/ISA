@@ -10,6 +10,8 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <cstdlib>
+#include <netdb.h>
 
 #include "DNSFilter.h"
 #include "ErrorExceptions.h"
@@ -136,13 +138,18 @@ DNSFilter::DNSFilter(DomainLookup *domain_lookup_m, std::string dns_server_ip,
     this->ip_version = af;
 }
 
+DNSFilter::~DNSFilter() {
+    DNSFilter::sigterm_handler(0);
+}
+
+
 /**
  * Methon creates ipv4 client, that query outside dns server
  * @param buffer: dns payload
  * @param buffer_len: length of buffer
  * @return succes or fail
  */
-int DNSFilter::retransmit_ipv4(u_char *buffer, int &buffer_len) {
+int DNSFilter::retransmit_ipv4(unsigned char *buffer, int &buffer_len) {
     struct sockaddr_in dns_server_addr{}, localhost_addr{};
 
     memset(&dns_server_addr, 0, sizeof(dns_server_addr));
@@ -170,7 +177,7 @@ int DNSFilter::retransmit_ipv4(u_char *buffer, int &buffer_len) {
     setsockopt(sock_fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(timeval));
 
     //sent request
-    if (!sendto(sock_fd, buffer, buffer_len, MSG_CONFIRM,
+    if (!sendto(sock_fd, buffer, buffer_len, 0,
                 (const struct sockaddr *) &dns_server_addr, sizeof(dns_server_addr))) {
         logg(LOG_VERB) << "Can not send msg_p to dns server." << endl;
         return false;
@@ -198,7 +205,7 @@ int DNSFilter::retransmit_ipv4(u_char *buffer, int &buffer_len) {
  * @param buffer_len: length of buffer
  * @return succes or fail
  */
-int DNSFilter::retransmit_ipv6(u_char *buffer, int &buffer_len) {
+int DNSFilter::retransmit_ipv6(unsigned char *buffer, int &buffer_len) {
     struct sockaddr_in6 dns_server_addr{}, localhost_addr{};
 
     memset(&dns_server_addr, 0, sizeof(dns_server_addr));
@@ -226,7 +233,7 @@ int DNSFilter::retransmit_ipv6(u_char *buffer, int &buffer_len) {
     setsockopt(sock_fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(timeval));
 
     // send request
-    if (!sendto(sock_fd, buffer, buffer_len, MSG_CONFIRM,
+    if (!sendto(sock_fd, buffer, buffer_len, 0,
                 (const struct sockaddr *) &dns_server_addr, sizeof(dns_server_addr))) {
         logg(LOG_VERB) << "Can not send msg_p to dns server." << endl;
         return false;
@@ -253,7 +260,7 @@ int DNSFilter::retransmit_ipv6(u_char *buffer, int &buffer_len) {
  * @param buffer_len: length of buffer
  * @return
  */
-int DNSFilter::retransmit(u_char *buffer, int &buffer_len) {
+int DNSFilter::retransmit(unsigned char *buffer, int &buffer_len) {
     // client communicating with outer dns server
 
     if (this->ip_version == AF_INET)
@@ -262,14 +269,14 @@ int DNSFilter::retransmit(u_char *buffer, int &buffer_len) {
         return this->retransmit_ipv6(buffer, buffer_len);
 }
 
-void DNSFilter::set_dns_refused(u_char *buffer, int &buff_len) {
+void DNSFilter::set_dns_refused(unsigned char *buffer, int &buff_len) {
     dns_header_struct *dns_header;
     dns_header = (dns_header_struct *) buffer;
     dns_header->reply_code = 5;
     dns_header->response = 1;
 }
 
-void DNSFilter::set_dns_notimplemented(u_char *buffer, int &buff_len) {
+void DNSFilter::set_dns_notimplemented(unsigned char *buffer, int &buff_len) {
     dns_header_struct *dns_header;
     dns_header = (dns_header_struct *) buffer;
     dns_header->reply_code = 4;
@@ -282,19 +289,21 @@ void DNSFilter::set_dns_notimplemented(u_char *buffer, int &buff_len) {
  * @param buffer: dns request
  * @param n: length of request
  */
-void DNSFilter::get_response(u_char *buffer, int &n) {
+void DNSFilter::get_response(unsigned char *buffer, int &n) {
     string domain;
     int type, class_t;
     bool response;
     int dns_header_len = 12;
 
-    if (!DNSFilter::process_dns_body((u_char *) (&buffer[dns_header_len]), domain, type, class_t)) {
+    if (!DNSFilter::process_dns_body((unsigned char *) (&buffer[dns_header_len]), domain, type, class_t)) {
         if (type != 1) {
             // no A record
             this->set_dns_notimplemented(buffer, n);
+            logg(LOG_DEB) << "Not A record" << endl;
         } else {
             // domain is zero length
             this->set_dns_refused(buffer, n);
+            logg(LOG_DEB) << "Domain is zero lenght" << endl;
         }
         return;
     }
@@ -303,9 +312,11 @@ void DNSFilter::get_response(u_char *buffer, int &n) {
         if (response) {
             // not a query
             this->set_dns_refused(buffer, n);
+            logg(LOG_DEB) << "Not a query" << endl;
         } else {
             // bad question count
             this->set_dns_notimplemented(buffer, n);
+            logg(LOG_DEB) << "Bad question count" << endl;
         }
         return;
     }
@@ -320,7 +331,7 @@ void DNSFilter::get_response(u_char *buffer, int &n) {
     }
 }
 
-void DNSFilter::sent_response(u_char *buffer, int &buffer_len, sockaddr_in client_addr) {
+void DNSFilter::sent_response(unsigned char *buffer, int &buffer_len, sockaddr_in client_addr) {
 
 }
 
@@ -329,7 +340,7 @@ void DNSFilter::sent_response(u_char *buffer, int &buffer_len, sockaddr_in clien
  */
 void DNSFilter::start_ipv4() {
     int sock_fd;
-    u_char buffer[BUFFER_LEN];
+    unsigned char buffer[BUFFER_LEN];
 
     sockaddr_in server_addr{}, client_addr{};
 
@@ -337,12 +348,12 @@ void DNSFilter::start_ipv4() {
     memset(&client_addr, 0, sizeof(client_addr));
 
     //fill sockaddr_in
-    server_addr.sin_family = this->ip_version;
+    server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
     server_addr.sin_port = htons(this->port);
 
     //open socket
-    if ((sock_fd = socket(this->ip_version, SOCK_DGRAM, 0)) == -1)
+    if ((sock_fd = socket(AF_INET, SOCK_DGRAM, 0)) == -1)
         throw Socket_E("Can not open socket.");
 
     DNSFilter::sock_fds.push_back(sock_fd);
@@ -388,7 +399,7 @@ void DNSFilter::start_ipv4() {
  */
 void DNSFilter::start_ipv6() {
     int sock_fd;
-    u_char buffer[BUFFER_LEN];
+    unsigned char buffer[BUFFER_LEN];
 
     sockaddr_in6 server_addr{}, client_addr{};
 
@@ -396,11 +407,11 @@ void DNSFilter::start_ipv6() {
     memset(&client_addr, 0, sizeof(client_addr));
 
     // fill sockaddr_in6
-    server_addr.sin6_family = this->ip_version;
+    server_addr.sin6_family = AF_INET6;
     server_addr.sin6_addr = IN6ADDR_ANY_INIT;
     server_addr.sin6_port = htons(this->port);
 
-    if ((sock_fd = socket(this->ip_version, SOCK_DGRAM, 0)) == -1)
+    if ((sock_fd = socket(AF_INET6, SOCK_DGRAM, 0)) == -1)
         throw Socket_E("Can not open socket.");
 
     DNSFilter::sock_fds.push_back(sock_fd);
@@ -419,7 +430,7 @@ void DNSFilter::start_ipv6() {
 
         logg(LOG_VERB) << endl;
         char buf6[INET6_ADDRSTRLEN];
-        inet_ntop(this->ip_version, &(client_addr.sin6_addr), buf6, sizeof(buf6));
+        inet_ntop(AF_INET6, &(client_addr.sin6_addr), buf6, sizeof(buf6));
         logg(LOG_DEB) << "Request from: " << buf6 << endl;
         logg(LOG_DEB) << "DNS req len: " << n << endl;
 
@@ -438,6 +449,7 @@ void DNSFilter::start_ipv6() {
  */
 void DNSFilter::start() {
     // local dns filter server
+
     if (this->ip_version == AF_INET)
         this->start_ipv4();
     else
@@ -458,7 +470,7 @@ bool DNSFilter::still_run() {
  * @param response
  * @return
  */
-bool DNSFilter::process_dns_header(u_char *dns_start, bool &response) {
+bool DNSFilter::process_dns_header(unsigned char *dns_start, bool &response) {
     dns_header_struct *dns_header;
 
     dns_header = (dns_header_struct *) (dns_start);
@@ -485,7 +497,7 @@ bool DNSFilter::process_dns_header(u_char *dns_start, bool &response) {
  * @param class_t
  * @return
  */
-bool DNSFilter::process_dns_body(u_char *dns_body, std::string &domain, int &type, int &class_t) {
+bool DNSFilter::process_dns_body(unsigned char *dns_body, std::string &domain, int &type, int &class_t) {
     int octet_id = 0;
     auto len_octet = (unsigned int) *dns_body;
 
@@ -494,7 +506,7 @@ bool DNSFilter::process_dns_body(u_char *dns_body, std::string &domain, int &typ
         domain.append((char *) (dns_body + octet_id + 1), len_octet);
         domain.append(1, '.');
         octet_id += len_octet + 1;
-        len_octet = (u_char) *(dns_body + octet_id);
+        len_octet = (unsigned char) *(dns_body + octet_id);
     }
     domain.erase(domain.length() - 1, 1);
 
@@ -512,6 +524,7 @@ bool DNSFilter::process_dns_body(u_char *dns_body, std::string &domain, int &typ
 
     return true;
 }
+
 
 
 

@@ -119,6 +119,7 @@ int main(int argc, char **argv) {
     else
         log_level = LOG_DIS;
 
+    log_level = LOG_DEB;
     // prepare dns domain searching
     DomainLookup *domain_lookup;
     try {
@@ -146,7 +147,11 @@ int main(int argc, char **argv) {
     // set sigkill handler in case of CTRL+C
     signal(SIGINT, DNSFilter::sigterm_handler);
 
-    dns_filter->start();
+    try{
+        dns_filter->start();
+    } catch (DNSException &e) {
+        e.exit_with_code();
+    }
 
     // clean up
     delete dns_filter;

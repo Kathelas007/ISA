@@ -13,6 +13,15 @@
 #include <string>
 #include <vector>
 
+
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <unistd.h>
+#include <cstdlib>
+#include <netdb.h>
+
 #include "DomainLookup.h"
 
 #define BUFFER_LEN 1024
@@ -33,6 +42,8 @@ public:
 
     void start();
 
+    ~DNSFilter();
+
 protected:
     DomainLookup *domain_lookup;
     int port;
@@ -48,23 +59,23 @@ protected:
 
     bool still_run();
 
-    bool process_dns_header(u_char *dns_start, bool &response);
+    bool process_dns_header(unsigned char *dns_start, bool &response);
 
-    bool process_dns_body(u_char *dns_body, std::string &domain, int &type, int &class_t);
+    bool process_dns_body(unsigned char *dns_body, std::string &domain, int &type, int &class_t);
 
-    void get_response(u_char *buffer, int &n);
+    void get_response(unsigned char *buffer, int &n);
 
-    void sent_response(u_char *buffer, int &buffer_len, sockaddr_in client_addr);
+    void sent_response(unsigned char *buffer, int &buffer_len, sockaddr_in client_addr);
 
-    int retransmit_ipv4(u_char *buffer, int &buff_len);
+    int retransmit_ipv4(unsigned char *buffer, int &buff_len);
 
-    int retransmit_ipv6(u_char *buffer, int &buff_len);
+    int retransmit_ipv6(unsigned char *buffer, int &buff_len);
 
-    int retransmit(u_char *buffer, int &buff_len);
+    int retransmit(unsigned char *buffer, int &buff_len);
 
-    void set_dns_refused(u_char *buffer, int &buff_len);
+    void set_dns_refused(unsigned char *buffer, int &buff_len);
 
-    void set_dns_notimplemented(u_char *buffer, int &buff_len);
+    void set_dns_notimplemented(unsigned char *buffer, int &buff_len);
 
 #pragma pack(push, 1)
     typedef struct {

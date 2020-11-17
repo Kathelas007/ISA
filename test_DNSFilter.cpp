@@ -72,7 +72,7 @@ void setUp() {
 }
 
 void make_test() {
-    cout << "\n\nDomain Lookup Test\n\n";
+    cout << "\n\nDNS Filter Test\n\n";
 
     int OK = 0;
     int FAILED = 0;
