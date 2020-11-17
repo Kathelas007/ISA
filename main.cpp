@@ -139,8 +139,6 @@ int main(int argc, char **argv) {
         e.exit_with_code();
     }
 
-    logg(LOG_VERB) << "DNS server IP: " << outer_server_IP << endl;
-
     // init filter servers
     auto dns_filter = new DNSFilter(domain_lookup, args.server, args.port, af);
 

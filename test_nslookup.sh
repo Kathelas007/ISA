@@ -1,5 +1,3 @@
-#!/bin/env bash
-
 # nslookup -type=AAAA -port=1234  .fit.vut.cz localhost
 
 declare -a tests_ns=(
@@ -13,6 +11,7 @@ declare -a tests_ns=(
 declare -a results_ns=("147.229.9.26" "NOTIMP" "REFUSED" "NXDOMAIN")
 
 # start server
+killall -15 dns &> /dev/null;
 ./dns -s 8.8.8.8 -f ./test_filter.fil  -p 1234 > /dev/null &
 sleep 1;
 
@@ -41,7 +40,7 @@ for (( i=0; i<$END; i++ ));do
   fi
 done
 
-killall -15 "./dns" > dev/null;
+killall -15 dns &> /dev/null;
 
 echo "";
 echo -e "Summary:\t$test_ok/$test_count succeeded";

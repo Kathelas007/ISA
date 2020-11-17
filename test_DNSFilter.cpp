@@ -28,7 +28,7 @@ bool test_is_IPv4() {
 
 bool test_is_not_IPv4() {
     return !(DNSFilter::is_IPv4("127.0.0") or DNSFilter::is_IPv4("2001:4860:4860::8888") or
-             DNSFilter::is_IPv4("google.com"));
+             DNSFilter::is_IPv4("fit.vut.cz"));
 }
 
 bool test_is_IPv6() {
@@ -37,18 +37,18 @@ bool test_is_IPv6() {
 
 bool test_is_not_IPv6() {
     return !(DNSFilter::is_IPv6("2001:4860:4860") or DNSFilter::is_IPv6("127.0.0.1") or
-             DNSFilter::is_IPv6("google.com"));
+             DNSFilter::is_IPv6("fit.vut.cz"));
 }
 
 bool test_domain_to_IP() {
-    string dom = "google.com";
+    string dom = "fit.vut.cz";
     DNSFilter::domain_to_IP(dom);
-    return ("172.217.23.238" == dom);
+    return ("147.229.9.26" == dom);
 }
 
 bool test_get_server_ip() {
     int af = 2;
-    return ("172.217.23.238" == DNSFilter::get_server_IP("google.com", af));
+    return ("147.229.9.26" == DNSFilter::get_server_IP("fit.vut.cz", af));
 }
 
 void setUp() {
